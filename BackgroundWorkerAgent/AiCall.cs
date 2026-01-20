@@ -4,6 +4,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
+using Anthropic.SDK;
+using Anthropic.SDK.Messaging;
+using BackgroundWorkerAgent.Core.Models;
 
 namespace BackgroundWorkerAgent
 {
@@ -13,26 +16,30 @@ namespace BackgroundWorkerAgent
         // Store the Kernel (AI "brain") - readonly = can only be set in constructor (immutability)
         private readonly Kernel _kernel;
 
+        private readonly AnthropicClient _anthropicClient;
+
         private readonly ExtensionFilter _filter;
 
         private FileSystemWatcher? _watcher;
 
         // Constructor: Runs when you create new AiCall("your-api-key")
         // Purpose: Initialize the AI connection with your API key
-        public AiCall(string apiKey)
+        public AiCall(string openAiApiKey, string anthropicApiKey)
         {
             // Validate API key is not null/empty/whitespace - fail fast if invalid
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                // Throw exception with clear message - nameof(apiKey) gives parameter name as string
-                throw new ArgumentException("API key must not be null or empty.", nameof(apiKey));
-            }
+            ArgumentException.ThrowIfNullOrWhiteSpace(openAiApiKey);
+            ArgumentException.ThrowIfNullOrWhiteSpace(anthropicApiKey);
+
+            var client = new AnthropicClient(anthropicApiKey);
+            _anthropicClient = client;
 
             // STEP 1: Create builder (factory pattern to configure Kernel)
             var builder = Kernel.CreateBuilder();
 
             // STEP 2: Add OpenAI chat completion - modelId = which AI model, apiKey = your secret key
-            builder.AddOpenAIChatCompletion(modelId: "gpt-4o-mini", apiKey: apiKey);
+            builder.AddOpenAIChatCompletion(modelId: "gpt-4o-mini", apiKey: openAiApiKey);
+
+
 
             // STEP 3: Build the Kernel - AI is now ready to accept prompts
             _kernel = builder.Build();
@@ -114,12 +121,17 @@ namespace BackgroundWorkerAgent
 
                     // Send file content to AI with prompt asking for 2-3 sentence summary
                     // \n\n = two newlines for better formatting in prompt
-                    var result = await _kernel.InvokePromptAsync(
-                        $"Summarize this text in 2-3 sentences:\n\n{content}", cancellationToken: ct
-                    ).ConfigureAwait(false);
 
-                    // Print AI's summary to console
-                    Console.WriteLine($"Summary: {result}");
+                    var prompt = $"Summarize this text in 2-3 sentences:\n\n{content}";
+
+                    Task<string> gptTask = SummerizeWithGptAsync(prompt, ct);
+                    Task<string> claudeTask = SummarizeWithClaudeAsync(prompt, ct);
+
+                    await Task.WhenAll(gptTask, claudeTask).ConfigureAwait(false);
+
+                    var comparison = ComparisonResult.Create(prompt, gptTask.Result, claudeTask.Result);
+                    DisplayComparison(comparison);
+
 
                 }
                 catch(OperationCanceledException)
@@ -145,6 +157,56 @@ namespace BackgroundWorkerAgent
             // Inform user that watcher is active and ready
             Console.WriteLine($"Watching folder: {folderPath}");
             Console.WriteLine("Drop a .txt file to test!");
+        }
+
+        private async Task<string> SummerizeWithGptAsync(string prompt, CancellationToken ct)
+        {
+            var result = await _kernel.InvokePromptAsync(prompt, cancellationToken: ct
+            ).ConfigureAwait(false);
+            return result.ToString();
+        }
+
+        private async Task<string> SummarizeWithClaudeAsync(string prompt, CancellationToken ct)
+        {
+            // Use GetClaudeMessageAsync instead of non-existent CreateAsync
+            var request = new Message(RoleType.User, prompt);
+
+            var claudeResponse = await _anthropicClient.Messages.GetClaudeMessageAsync(new MessageParameters
+            {
+                Model = "claude-sonnet-4-20250514",
+                MaxTokens = 1024,
+                Messages = [request]
+            }, ct).ConfigureAwait(false);
+
+            // Assuming MessageResponse has a Content property or similar
+            // If not, you may need to inspect the MessageResponse type for the correct way to extract the text
+            return claudeResponse?.Content?.FirstOrDefault()?.ToString() ?? string.Empty;
+        }
+
+        private static void DisplayComparison(ComparisonResult comparison)
+        {
+            Console.WriteLine();
+            Console.WriteLine("═══════════════════════════════════════════════════════════════");
+            Console.WriteLine("                    COMPARISON RESULTS");
+            Console.WriteLine("═══════════════════════════════════════════════════════════════");
+
+            Console.WriteLine();
+            Console.WriteLine("─── GPT Response ───");
+            Console.WriteLine(comparison.GptResponse);
+
+            Console.WriteLine();
+            Console.WriteLine("─── Claude Response ───");
+            Console.WriteLine(comparison.ClaudeResponse);
+
+            Console.WriteLine();
+            Console.WriteLine("─── Word Analysis ───");
+            Console.WriteLine($"Shared words ({comparison.SharedWords.Count}): {string.Join(", ", comparison.SharedWords.Take(15))}{(comparison.SharedWords.Count > 15 ? "..." : "")}");
+            Console.WriteLine($"GPT only ({comparison.GptOnlyWords.Count}): {string.Join(", ", comparison.GptOnlyWords.Take(10))}{(comparison.GptOnlyWords.Count > 10 ? "..." : "")}");
+            Console.WriteLine($"Claude only ({comparison.ClaudeOnlyWords.Count}): {string.Join(", ", comparison.ClaudeOnlyWords.Take(10))}{(comparison.ClaudeOnlyWords.Count > 10 ? "..." : "")}");
+
+            Console.WriteLine();
+            Console.WriteLine($"Compared at: {comparison.ComparedAt:HH:mm:ss} UTC");
+            Console.WriteLine("═══════════════════════════════════════════════════════════════");
         }
 
         public void Dispose()

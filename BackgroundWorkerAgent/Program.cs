@@ -5,16 +5,21 @@ using Microsoft.Extensions.Configuration;
 
 var configurationRoot = new ConfigurationBuilder().AddUserSecrets<Program>().Build();
 
-var apiKey = configurationRoot["OpenAI:ApiKey"];
+var openAiApiKey = configurationRoot["OpenAI:ApiKey"];
+var anthropicKey = configurationRoot["Anthropic:ApiKey"];
 
-
-if (string.IsNullOrWhiteSpace(apiKey))
+// Fix: Ensure anthropicKey is not null before passing to AiCall constructor
+if (string.IsNullOrWhiteSpace(openAiApiKey))
 {
     Console.WriteLine("ERROR: OPENAI_API_KEY environment variable not set!");    
     return;
 }
 
-
+if (string.IsNullOrWhiteSpace(anthropicKey))
+{
+    Console.WriteLine("ERROR: ANTHROPIC_API_KEY environment variable not set!");
+    return;
+}
 
 using var cts = new CancellationTokenSource();
 
@@ -25,12 +30,10 @@ Console.CancelKeyPress += (sender, eventArgs) =>
     Console.WriteLine("\n Shutdown requested....");
 };
 
-
-using var aiCall = new AiCall(apiKey);
+using var aiCall = new AiCall(openAiApiKey, anthropicKey);
 
 Console.WriteLine("Background Worker Agent started!");
 Console.WriteLine("Press Ctrl+C to stop.\n");
-
 
 var watchFolder = @"E:\source_v3\C#\AI_Projects\TestFolder"; 
 

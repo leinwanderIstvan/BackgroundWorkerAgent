@@ -9,11 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Anthropic.SDK" Version="5.8.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="6.0.1" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.68.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.68.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BackgroundWorkerAgent.Core\BackgroundWorkerAgent.Core.csproj" />
   </ItemGroup>
 
 </Project>

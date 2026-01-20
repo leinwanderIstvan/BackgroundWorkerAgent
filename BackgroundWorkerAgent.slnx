@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BackgroundWorkerAgent.Core/BackgroundWorkerAgent.Core.csproj" />
+  <Project Path="BackgroundWorkerAgent/BackgroundWorkerAgent.csproj" />
+</Solution>
