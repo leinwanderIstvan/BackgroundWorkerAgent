@@ -10,12 +10,14 @@ public record LlmResponse
     public required string ResponseText { get; init; }
     public DateTime Timestamp { get; init; } = DateTime.UtcNow;
     public int? TokenCount { get; init; }
+    public decimal? EstimatedCost { get; init; }
 
     public static LlmResponse Create(
         string modelName,
         string provider,
         string responseText,
-        int? tokenCount = null)
+        int? tokenCount = null,
+        decimal? estimatedCost = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
         ArgumentException.ThrowIfNullOrWhiteSpace(provider);
@@ -26,7 +28,8 @@ public record LlmResponse
             ModelName = modelName,
             Provider = provider,
             ResponseText = responseText,
-            TokenCount = tokenCount
+            TokenCount = tokenCount,
+            EstimatedCost = estimatedCost
         };
     }
 }
