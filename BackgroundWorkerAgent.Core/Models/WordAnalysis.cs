@@ -63,11 +63,25 @@ public static class WordAnalysisExtensions
         }
     }
 
-    private static HashSet<string> ExtractWords(string text)
+    extension(string text)
     {
-        var matches = Regex.Matches(text, @"\b[a-zA-Z]{3,}\b");
-        return matches
-            .Select(m => m.Value.ToLowerInvariant())
-            .ToHashSet();
+        private HashSet<string> ExtractWords()
+        {
+            var matches = Regex.Matches(text, @"\b[a-zA-Z]{3,}\b");
+            return matches
+                .Select(m => m.Value.ToLowerInvariant())
+                .ToHashSet();
+        }
+    }
+
+    extension(WordAnalysis analysis)
+    {
+        public string SharedWordsSummary() => analysis.SharedWords switch
+        {
+            [] => "No shared words",
+            [var single] => $"1 shared word: {single}",
+            { Count: <= 5 } words => $"Shared ({words.Count}): {string.Join(", ", words)}",
+            var words => $"{words.Count} shared words: {string.Join(", ", words.Take(5))}..."
+        };
     }
 }

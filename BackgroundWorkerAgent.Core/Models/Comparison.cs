@@ -39,4 +39,15 @@ public static class ComparisonExtensions
             };
         }
     }
+
+    extension(Comparison comparison)
+    {
+        public string ToSummary() => comparison.Responses switch
+        {
+            [] => "No responses",
+            [var single] => $"Response from {single.Provider} ({single.ModelName})",
+            [var first, var second] => $"Compared {first.Provider} ({first.ModelName}) vs {second.Provider} ({second.ModelName})",
+            [var first, ..] => $"Compared {comparison.Responses.Count} models starting with {first.Provider}"
+        };
+    }
 }
