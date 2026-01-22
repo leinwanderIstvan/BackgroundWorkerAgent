@@ -12,24 +12,31 @@ public record Comparison
     public required IReadOnlyList<LlmResponse> Responses { get; init; }
     public required WordAnalysis Analysis { get; init; }
     public DateTime ComparedAt { get; init; } = DateTime.UtcNow;
+}
 
-    public static Comparison Create(Question question, IReadOnlyList<LlmResponse> responses)
+
+public static class ComparisonExtensions
+{
+    extension(Comparison)
     {
-        ArgumentNullException.ThrowIfNull(question);
-        ArgumentNullException.ThrowIfNull(responses);
-
-        if (responses.Count < 2)
+        public static Comparison Create(Question question, IReadOnlyList<LlmResponse> responses)
         {
-            throw new ArgumentException("Need at least 2 responses to create a comparison.", nameof(responses));
+            ArgumentNullException.ThrowIfNull(question);
+            ArgumentNullException.ThrowIfNull(responses);
+
+            if (responses.Count < 2)
+            {
+                throw new ArgumentException("Need at least 2 responses to create a comparison.", nameof(responses));
+            }
+
+            var analysis = WordAnalysis.Create(responses);
+
+            return new Comparison
+            {
+                Question = question,
+                Responses = responses,
+                Analysis = analysis
+            };
         }
-
-        var analysis = WordAnalysis.Create(responses);
-
-        return new Comparison
-        {
-            Question = question,
-            Responses = responses,
-            Analysis = analysis
-        };
     }
 }

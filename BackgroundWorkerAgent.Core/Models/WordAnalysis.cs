@@ -11,49 +11,56 @@ public record WordAnalysis
     public required IReadOnlyList<string> SharedWords { get; init; }
     public required IReadOnlyDictionary<string, IReadOnlyList<string>> UniqueWordsByModel { get; init; }
     public DateTime AnalyzedAt { get; init; } = DateTime.UtcNow;
+}
 
-    public static WordAnalysis Create(IReadOnlyList<LlmResponse> responses)
+
+public static class WordAnalysisExtensions
+{
+    extension(WordAnalysis)
     {
-        ArgumentNullException.ThrowIfNull(responses);
-
-        if (responses.Count < 2)
+        public static WordAnalysis Create(IReadOnlyList<LlmResponse> responses)
         {
-            throw new ArgumentException("Need at least 2 responses to compare.", nameof(responses));
-        }
+            ArgumentNullException.ThrowIfNull(responses);
 
-        // Extract words from each response, keyed by model name
-        var wordsByModel = responses.ToDictionary(
-            r => r.ModelName,
-            r => ExtractWords(r.ResponseText));
+            if (responses.Count < 2)
+            {
+                throw new ArgumentException("Need at least 2 responses to compare.", nameof(responses));
+            }
 
-        // Shared words = intersection of ALL responses
-        var sharedWords = wordsByModel.Values
-            .Aggregate((current, next) => current.Intersect(next).ToHashSet())
-            .OrderBy(w => w)
-            .ToList();
+            // Extract words from each response, keyed by model name
+            var wordsByModel = responses.ToDictionary(
+                r => r.ModelName,
+                r => ExtractWords(r.ResponseText));
 
-        // Unique words per model = words in this model but not in ANY other
-        var allOtherWords = new Dictionary<string, HashSet<string>>();
-        foreach (var model in wordsByModel.Keys)
-        {
-            allOtherWords[model] = wordsByModel
-                .Where(kvp => kvp.Key != model)
-                .SelectMany(kvp => kvp.Value)
-                .ToHashSet();
-        }
-
-        var uniqueWordsByModel = wordsByModel.ToDictionary(
-            kvp => kvp.Key,
-            kvp => (IReadOnlyList<string>)kvp.Value
-                .Except(allOtherWords[kvp.Key])
+            // Shared words = intersection of ALL responses
+            var sharedWords = wordsByModel.Values
+                .Aggregate((current, next) => current.Intersect(next).ToHashSet())
                 .OrderBy(w => w)
-                .ToList());
+                .ToList();
 
-        return new WordAnalysis
-        {
-            SharedWords = sharedWords,
-            UniqueWordsByModel = uniqueWordsByModel
-        };
+            // Unique words per model = words in this model but not in ANY other
+            var allOtherWords = new Dictionary<string, HashSet<string>>();
+            foreach (var model in wordsByModel.Keys)
+            {
+                allOtherWords[model] = wordsByModel
+                    .Where(kvp => kvp.Key != model)
+                    .SelectMany(kvp => kvp.Value)
+                    .ToHashSet();
+            }
+
+            var uniqueWordsByModel = wordsByModel.ToDictionary(
+                kvp => kvp.Key,
+                kvp => (IReadOnlyList<string>)kvp.Value
+                    .Except(allOtherWords[kvp.Key])
+                    .OrderBy(w => w)
+                    .ToList());
+
+            return new WordAnalysis
+            {
+                SharedWords = sharedWords,
+                UniqueWordsByModel = uniqueWordsByModel
+            };
+        }
     }
 
     private static HashSet<string> ExtractWords(string text)

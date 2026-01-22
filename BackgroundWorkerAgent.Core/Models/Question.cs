@@ -9,17 +9,24 @@ public record Question
     public required string FileName { get; init; }
     public required string Content { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+}
 
-    public static Question FromFile(string filePath, string content)
+
+public static class QuestionExtensions
+{
+    extension(Question)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(content);
-
-        return new Question
+        public static Question FromFile(string filePath, string content)
         {
-            FilePath = filePath,
-            FileName = Path.GetFileName(filePath),
-            Content = content
-        };
+            ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+            ArgumentException.ThrowIfNullOrWhiteSpace(content);
+
+            return new Question
+            {
+                FilePath = filePath,
+                FileName = Path.GetFileName(filePath),
+                Content = content
+            };
+        }
     }
 }

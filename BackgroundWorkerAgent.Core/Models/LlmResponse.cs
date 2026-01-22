@@ -12,24 +12,36 @@ public record LlmResponse
     public int? TokenCount { get; init; }
     public decimal? EstimatedCost { get; init; }
 
-    public static LlmResponse Create(
-        string modelName,
-        string provider,
-        string responseText,
-        int? tokenCount = null,
-        decimal? estimatedCost = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
-        ArgumentNullException.ThrowIfNull(responseText);
-
-        return new LlmResponse
-        {
-            ModelName = modelName,
-            Provider = provider,
-            ResponseText = responseText,
-            TokenCount = tokenCount,
-            EstimatedCost = estimatedCost
-        };
-    }
+    
 }
+
+
+public static class LlmResponseExtensions
+{
+    extension(LlmResponse)
+    {
+        public static LlmResponse Create(
+            string modelName,
+            string provider,
+            string responseText,
+            int? tokenCount = null,
+            decimal? estimatedCost = null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
+            ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+            ArgumentNullException.ThrowIfNull(responseText);
+
+            return new LlmResponse
+            {
+                ModelName = modelName,
+                Provider = provider,
+                ResponseText = responseText,
+                TokenCount = tokenCount,
+                EstimatedCost = estimatedCost
+            };
+        }
+    }
+
+}
+
+
