@@ -119,17 +119,21 @@ namespace BackgroundWorkerAgent
                     // await = don't block thread while reading (file I/O is slow)
                     var content = await File.ReadAllTextAsync(e.FullPath).ConfigureAwait(false);
 
-                    // Send file content to AI with prompt asking for 2-3 sentence summary
-                    // \n\n = two newlines for better formatting in prompt
+                    // Create Question entity from the file
+                    var question = Question.FromFile(e.FullPath, content);
 
+                    // Build prompt for summarization
                     var prompt = $"Summarize this text in 2-3 sentences:\n\n{content}";
 
-                    Task<string> gptTask = SummerizeWithGptAsync(prompt, ct);
-                    Task<string> claudeTask = SummarizeWithClaudeAsync(prompt, ct);
+                    // Call both LLMs in parallel
+                    Task<LlmResponse> gptTask = GetGptResponseAsync(prompt, ct);
+                    Task<LlmResponse> claudeTask = GetClaudeResponseAsync(prompt, ct);
 
                     await Task.WhenAll(gptTask, claudeTask).ConfigureAwait(false);
 
-                    var comparison = ComparisonResult.Create(prompt, gptTask.Result, claudeTask.Result);
+                    // Create comparison with all responses
+                    var responses = new List<LlmResponse> { gptTask.Result, claudeTask.Result };
+                    var comparison = Comparison.Create(question, responses);
                     DisplayComparison(comparison);
 
 
@@ -159,16 +163,19 @@ namespace BackgroundWorkerAgent
             Console.WriteLine("Drop a .txt file to test!");
         }
 
-        private async Task<string> SummerizeWithGptAsync(string prompt, CancellationToken ct)
+        private async Task<LlmResponse> GetGptResponseAsync(string prompt, CancellationToken ct)
         {
-            var result = await _kernel.InvokePromptAsync(prompt, cancellationToken: ct
-            ).ConfigureAwait(false);
-            return result.ToString();
+            var result = await _kernel.InvokePromptAsync(prompt, cancellationToken: ct)
+                .ConfigureAwait(false);
+
+            return LlmResponse.Create(
+                modelName: "gpt-4o-mini",
+                provider: "OpenAI",
+                responseText: result.ToString());
         }
 
-        private async Task<string> SummarizeWithClaudeAsync(string prompt, CancellationToken ct)
+        private async Task<LlmResponse> GetClaudeResponseAsync(string prompt, CancellationToken ct)
         {
-            // Use GetClaudeMessageAsync instead of non-existent CreateAsync
             var request = new Message(RoleType.User, prompt);
 
             var claudeResponse = await _anthropicClient.Messages.GetClaudeMessageAsync(new MessageParameters
@@ -178,12 +185,15 @@ namespace BackgroundWorkerAgent
                 Messages = [request]
             }, ct).ConfigureAwait(false);
 
-            // Assuming MessageResponse has a Content property or similar
-            // If not, you may need to inspect the MessageResponse type for the correct way to extract the text
-            return claudeResponse?.Content?.FirstOrDefault()?.ToString() ?? string.Empty;
+            var responseText = claudeResponse?.Content?.FirstOrDefault()?.ToString() ?? string.Empty;
+
+            return LlmResponse.Create(
+                modelName: "claude-sonnet-4",
+                provider: "Anthropic",
+                responseText: responseText);
         }
 
-        private static void DisplayComparison(ComparisonResult comparison)
+        private static void DisplayComparison(Comparison comparison)
         {
             Console.WriteLine();
             Console.WriteLine("═══════════════════════════════════════════════════════════════");
@@ -191,18 +201,27 @@ namespace BackgroundWorkerAgent
             Console.WriteLine("═══════════════════════════════════════════════════════════════");
 
             Console.WriteLine();
-            Console.WriteLine("─── GPT Response ───");
-            Console.WriteLine(comparison.GptResponse);
+            Console.WriteLine($"─── Source: {comparison.Question.FileName} ───");
+            Console.WriteLine($"ID: {comparison.Id}");
 
-            Console.WriteLine();
-            Console.WriteLine("─── Claude Response ───");
-            Console.WriteLine(comparison.ClaudeResponse);
+            // Display each response dynamically (supports N responses)
+            foreach (var response in comparison.Responses)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"─── {response.Provider} ({response.ModelName}) ───");
+                Console.WriteLine(response.ResponseText);
+            }
 
             Console.WriteLine();
             Console.WriteLine("─── Word Analysis ───");
-            Console.WriteLine($"Shared words ({comparison.SharedWords.Count}): {string.Join(", ", comparison.SharedWords.Take(15))}{(comparison.SharedWords.Count > 15 ? "..." : "")}");
-            Console.WriteLine($"GPT only ({comparison.GptOnlyWords.Count}): {string.Join(", ", comparison.GptOnlyWords.Take(10))}{(comparison.GptOnlyWords.Count > 10 ? "..." : "")}");
-            Console.WriteLine($"Claude only ({comparison.ClaudeOnlyWords.Count}): {string.Join(", ", comparison.ClaudeOnlyWords.Take(10))}{(comparison.ClaudeOnlyWords.Count > 10 ? "..." : "")}");
+            var analysis = comparison.Analysis;
+            Console.WriteLine($"Shared words ({analysis.SharedWords.Count}): {string.Join(", ", analysis.SharedWords.Take(15))}{(analysis.SharedWords.Count > 15 ? "..." : "")}");
+
+            // Display unique words per model dynamically
+            foreach (var (modelName, uniqueWords) in analysis.UniqueWordsByModel)
+            {
+                Console.WriteLine($"{modelName} only ({uniqueWords.Count}): {string.Join(", ", uniqueWords.Take(10))}{(uniqueWords.Count > 10 ? "..." : "")}");
+            }
 
             Console.WriteLine();
             Console.WriteLine($"Compared at: {comparison.ComparedAt:HH:mm:ss} UTC");
