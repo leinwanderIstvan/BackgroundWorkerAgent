@@ -30,14 +30,17 @@ Console.CancelKeyPress += (sender, eventArgs) =>
     Console.WriteLine("\n Shutdown requested....");
 };
 
-using var aiCall = new AiCall(openAiApiKey, anthropicKey);
+var watchFolder = @"E:\source_v3\C#\AI_Projects\TestFolder";
+var comparisonOutputFolder = Path.Combine(watchFolder, "comparisons");
+var comparisonStore = new JsonComparisonStore(comparisonOutputFolder);
+
+using var aiCall = new AiCall(openAiApiKey, anthropicKey, comparisonStore);
 
 Console.WriteLine("Background Worker Agent started!");
+Console.WriteLine($"Comparisons will be saved to: {comparisonOutputFolder}");
 Console.WriteLine("Press Ctrl+C to stop.\n");
 
-var watchFolder = @"E:\source_v3\C#\AI_Projects\TestFolder"; 
-
-aiCall.StartWatchingFolder(watchFolder,cts.Token);
+aiCall.StartWatchingFolder(watchFolder, cts.Token);
 
 try
 {

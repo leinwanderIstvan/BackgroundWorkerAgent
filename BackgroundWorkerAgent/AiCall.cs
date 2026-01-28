@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.SemanticKernel;
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
+using BackgroundWorkerAgent.Core.Interfaces;
 using BackgroundWorkerAgent.Core.Models;
 
 namespace BackgroundWorkerAgent
@@ -18,17 +19,19 @@ namespace BackgroundWorkerAgent
 
         private readonly AnthropicClient _anthropicClient;
 
+        private readonly IComparisonStore _comparisonStore;
+
         private readonly ExtensionFilter _filter;
 
         private FileSystemWatcher? _watcher;
 
-        // Constructor: Runs when you create new AiCall("your-api-key")
-        // Purpose: Initialize the AI connection with your API key
-        public AiCall(string openAiApiKey, string anthropicApiKey)
+        public AiCall(string openAiApiKey, string anthropicApiKey, IComparisonStore comparisonStore)
         {
-            // Validate API key is not null/empty/whitespace - fail fast if invalid
             ArgumentException.ThrowIfNullOrWhiteSpace(openAiApiKey);
             ArgumentException.ThrowIfNullOrWhiteSpace(anthropicApiKey);
+            ArgumentNullException.ThrowIfNull(comparisonStore);
+
+            _comparisonStore = comparisonStore;
 
             var client = new AnthropicClient(anthropicApiKey);
             _anthropicClient = client;
@@ -136,7 +139,8 @@ namespace BackgroundWorkerAgent
                     var comparison = Comparison.Create(question, responses);
                     DisplayComparison(comparison);
 
-
+                    await _comparisonStore.SaveAsync(comparison, ct).ConfigureAwait(false);
+                    Console.WriteLine($"Saved comparison to JSON: {comparison.Id}");
                 }
                 catch(OperationCanceledException)
                 {
