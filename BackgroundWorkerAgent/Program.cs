@@ -38,7 +38,23 @@ using var aiCall = new AiCall(openAiApiKey, anthropicKey, comparisonStore);
 
 Console.WriteLine("Background Worker Agent started!");
 Console.WriteLine($"Comparisons will be saved to: {comparisonOutputFolder}");
-Console.WriteLine("Press Ctrl+C to stop.\n");
+
+var savedComparisons = await comparisonStore.GetAllAsync(cts.Token);
+if (savedComparisons.Count > 0)
+{
+    Console.WriteLine($"\nFound {savedComparisons.Count} saved comparison(s):");
+    foreach (var c in savedComparisons.OrderByDescending(x => x.ComparedAt).Take(3))
+    {
+        var preview = c.Question.Content.Length > 40
+            ? c.Question.Content[..40] + "..."
+            : c.Question.Content;
+        Console.WriteLine($"  - {c.ComparedAt:MMM dd, HH:mm} - \"{preview}\"");
+    }
+    if (savedComparisons.Count > 3)
+        Console.WriteLine($"  ... and {savedComparisons.Count - 3} more");
+}
+
+Console.WriteLine("\nPress Ctrl+C to stop.\n");
 
 aiCall.StartWatchingFolder(watchFolder, cts.Token);
 
